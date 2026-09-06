@@ -3,43 +3,49 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- X5内核专属优化：禁止动态字体调整，锁定竖屏 -->
+    <!-- X5内核专属优化：禁止动态字体调整，锁定竖屏，强制极速模式 -->
     <meta name="x5-layout" content="no-dynamic-font">
     <meta name="x5-orientation" content="portrait">
+    <meta name="renderer" content="webkit">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TagBox - 移动端优化版</title>
+    <title>TagBox - 安全标签管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* 基础重置 */
+        /* 基础重置与X5兼容 */
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; overflow-x: hidden; }
         
-        /* X5内核兼容：强制GPU渲染，防止Fixed定位元素消失或抖动 */
+        /* 核心修复：强制GPU渲染，防止Fixed定位元素在X5内核下消失或抖动 */
         .gpu-accelerate {
             -webkit-transform: translateZ(0);
             transform: translateZ(0);
             -webkit-backface-visibility: hidden;
             backface-visibility: hidden;
+            will-change: transform;
         }
 
-        /* 遮罩层核心样式 */
+        /* 遮罩层核心样式修复 */
         #auth-overlay {
-            display: none; 
+            display: none !important; /* 初始强制隐藏 */
             opacity: 0;
             transition: opacity 0.3s ease-in-out;
-            /* X5兼容：确保遮罩层在最顶层且背景不穿透 */
-            -webkit-transform: translateZ(0);
-            transform: translateZ(0);
+            /* 确保层级最高且背景不穿透 */
+            z-index: 9999;
         }
         
         #auth-overlay.show {
-            display: flex;
+            display: flex !important; /* 显示时强制Flex布局 */
             opacity: 1;
+            align-items: center;
+            justify-content: center;
         }
 
         /* 主内容区隐藏类 */
-        .hidden-important { display: none !important; }
+        .hidden-important { 
+            display: none !important; 
+            visibility: hidden;
+        }
 
         /* 动画 */
         .fade-in { animation: fadeIn 0.4s ease-out; }
@@ -57,12 +63,21 @@
             transition: all 0.2s;
         }
         .tag-card:active { transform: scale(0.98); }
+
+        /* 模态框底部弹出动画 */
+        .modal-panel {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(100%);
+        }
+        .modal-panel.open {
+            transform: translateY(0);
+        }
     </style>
 </head>
-<body class="text-gray-800 min-h-screen relative overflow-x-hidden">
+<body class="text-gray-800 min-h-screen relative">
 
     <!-- 1. 密码验证遮罩层 (X5优化版) -->
-    <div id="auth-overlay" class="fixed inset-0 z-50 bg-gray-900/90 backdrop-blur-sm items-center justify-center gpu-accelerate">
+    <div id="auth-overlay" class="fixed inset-0 bg-gray-900/90 backdrop-blur-sm gpu-accelerate">
         <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs mx-4 fade-in border border-gray-100">
             <div class="text-center mb-6">
                 <div class="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -83,7 +98,7 @@
                     <i class="fa-solid fa-circle-exclamation mr-1"></i> 密码错误
                 </div>
 
-                <button type="submit" class="w-full py-3 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-md">
+                <button type="submit" id="auth-btn" class="w-full py-3 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-md">
                     立即解锁
                 </button>
             </form>
@@ -142,7 +157,7 @@
     <!-- 模态框 (新建/编辑) -->
     <div id="tag-modal" class="fixed inset-0 z-50 hidden" aria-modal="true">
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeModal()"></div>
-        <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-5 transform transition-transform duration-300 translate-y-full" id="modal-panel">
+        <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-5 modal-panel" id="modal-panel">
             <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
             <h3 class="text-base font-bold mb-4" id="modal-title">新建标签</h3>
             <div class="space-y-3">
@@ -180,8 +195,10 @@
 
         // 初始化
         document.addEventListener('DOMContentLoaded', () => {
-            // X5内核下确保DOM完全就绪
-            setTimeout(checkAuth, 50);
+            // X5内核下延迟执行，确保DOM完全挂载
+            setTimeout(() => {
+                checkAuth();
+            }, 200);
         });
 
         // 认证检查
@@ -191,16 +208,19 @@
             const appContent = document.getElementById('app-content');
 
             if (isAuthed === 'true') {
+                // 已登录：隐藏遮罩，显示内容
                 overlay.classList.remove('show');
-                // 延迟显示内容，避免闪烁
-                setTimeout(() => {
-                    appContent.classList.remove('hidden-important');
-                    loadTags();
-                    renderTags();
-                }, 50);
+                overlay.style.display = 'none';
+                appContent.classList.remove('hidden-important');
+                loadTags();
+                renderTags();
             } else {
-                overlay.classList.add('show');
+                // 未登录：显示遮罩，隐藏内容
                 appContent.classList.add('hidden-important');
+                overlay.style.display = 'flex';
+                overlay.classList.add('show');
+                // 强制重绘
+                void overlay.offsetWidth;
             }
         }
 
@@ -217,7 +237,7 @@
             e.preventDefault();
             const inputPwd = document.getElementById('auth-password').value;
             const errorDiv = document.getElementById('auth-error');
-            const btn = e.target.querySelector('button');
+            const btn = document.getElementById('auth-btn');
             
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
             btn.disabled = true;
@@ -233,7 +253,8 @@
                     overlay.style.opacity = '0';
                     setTimeout(() => {
                         overlay.classList.remove('show');
-                        overlay.style.opacity = ''; // 恢复CSS默认
+                        overlay.style.display = 'none';
+                        overlay.style.opacity = ''; 
                         appContent.classList.remove('hidden-important');
                         loadTags();
                         renderTags();
@@ -251,10 +272,32 @@
             }
         }
 
+        // 退出登录 (X5优化版)
         function logout() {
             if(confirm('确定退出登录吗？')) {
+                // 1. 清除状态
                 sessionStorage.removeItem('tagbox_auth');
-                location.reload();
+                
+                // 2. 强制隐藏主内容
+                const appContent = document.getElementById('app-content');
+                appContent.classList.add('hidden-important');
+                appContent.style.display = 'none';
+                
+                // 3. 重置遮罩层状态
+                const overlay = document.getElementById('auth-overlay');
+                overlay.style.display = 'none';
+                overlay.classList.remove('show');
+                document.getElementById('auth-password').value = '';
+                document.getElementById('auth-error').classList.add('hidden');
+                document.getElementById('auth-btn').innerHTML = '立即解锁';
+                document.getElementById('auth-btn').disabled = false;
+
+                // 4. 延迟显示遮罩，给X5内核重排时间
+                setTimeout(() => {
+                    overlay.style.display = 'flex';
+                    overlay.classList.add('show');
+                    void overlay.offsetWidth; // 强制重绘
+                }, 150);
             }
         }
 
@@ -272,11 +315,13 @@
             container.innerHTML = '';
             
             const filtered = tags.filter(t => {
-                const matchCat = currentFilter === 'all' || t.category === currentFilter;
+                const matchCat = currentFilter === 'all' || t.category === t.category;
+                // 修正筛选逻辑
+                const realMatchCat = currentFilter === 'all' || t.category === currentFilter;
                 const contentMatch = t.content.toLowerCase().includes(searchVal);
                 const noteMatch = t.note ? t.note.toLowerCase().includes(searchVal) : false;
                 const urlMatch = t.url ? t.url.toLowerCase().includes(searchVal) : false;
-                return matchCat && (contentMatch || noteMatch || urlMatch);
+                return realMatchCat && (contentMatch || noteMatch || urlMatch);
             });
 
             if (filtered.length === 0) {
@@ -326,7 +371,7 @@
             modal.classList.remove('hidden');
             // 动画效果
             setTimeout(() => {
-                panel.classList.remove('translate-y-full');
+                panel.classList.add('open');
             }, 10);
             
             if(!isEdit) {
@@ -341,7 +386,7 @@
         function closeModal() {
             const modal = document.getElementById('tag-modal');
             const panel = document.getElementById('modal-panel');
-            panel.classList.add('translate-y-full');
+            panel.classList.remove('open');
             setTimeout(() => {
                 modal.classList.add('hidden');
             }, 300);
