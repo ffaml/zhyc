@@ -216,62 +216,70 @@
     }
 
     // 处理登录
-    async function handleAuth(e) {
-        e.preventDefault();
-        const inputPwd = document.getElementById('auth-password').value;
-        const errorDiv = document.getElementById('auth-error');
-        const btn = document.getElementById('auth-btn');
-        
-        if (!inputPwd) {
-            errorDiv.innerText = "请输入密码";
-            errorDiv.classList.remove('hidden');
-            return;
-        }
-
-        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
-        btn.disabled = true;
-
-        try {
-            const inputHash = await sha256(inputPwd);
-            if (inputHash === STORED_HASH) {
-                sessionStorage.setItem('tagbox_auth', 'true');
-                errorDiv.classList.add('hidden');
-                
-                const overlay = document.getElementById('auth-overlay');
-                const appContent = document.getElementById('app-content');
-                
-                // 1. 先淡出遮罩
-                overlay.style.opacity = '0';
-                
-                // 2. 延迟后切换显示状态并强制重绘
-                setTimeout(() => {
-                    overlay.classList.remove('show');
-                    overlay.style.display = 'none';
-                    overlay.style.opacity = ''; // 重置以便下次动画
-                    
-                    appContent.classList.remove('hidden-important');
-                    
-                    // 关键：强制浏览器重排，解决X5内核渲染停滞
-                    void appContent.offsetWidth; 
-                    
-                    loadTags();
-                    renderTags();
-                }, 300);
-            } else {
-                errorDiv.innerText = "密码错误";
-                errorDiv.classList.remove('hidden');
-                document.getElementById('auth-password').value = '';
-                btn.innerHTML = '立即解锁';
-                btn.disabled = false;
-            }
-        } catch (err) {
-            console.error(err);
-            errorDiv.innerText = "验证失败，请重试";
-            errorDiv.classList.remove('hidden');
-            btn.innerHTML = '立即解锁';
-            btn.disabled = false;
-        }
+  async function handleAuth(e) {
+    e.preventDefault();
+    console.log("Auth triggered"); // 调试用
+    
+    const inputPwd = document.getElementById('auth-password').value;
+    const errorDiv = document.getElementById('auth-error');
+    const btn = document.getElementById('auth-btn');
+    
+    if (!inputPwd) {
+        errorDiv.innerText = "请输入密码";
+        errorDiv.classList.remove('hidden');
+        return;
     }
+
+    // 锁定按钮防止重复点击
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 验证中...';
+
+    try {
+        // 模拟异步延迟，确保UI更新
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const inputHash = await sha256(inputPwd);
+        
+        if (inputHash === STORED_HASH) {
+            sessionStorage.setItem('tagbox_auth', 'true');
+            
+            // 执行界面切换
+            const overlay = document.getElementById('auth-overlay');
+            const appContent = document.getElementById('app-content');
+            
+            // 1. 隐藏遮罩
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                
+                // 2. 显示主界面
+                appContent.classList.remove('hidden-important');
+                appContent.style.display = 'block';
+                
+                // 3. 强制重绘 (X5内核关键修复)
+                void appContent.offsetWidth;
+                
+                // 4. 初始化数据
+                loadTags();
+                renderTags();
+                
+                // 5. 滚动到顶部，防止视口偏移
+                window.scrollTo(0, 0);
+            }, 300);
+            
+        } else {
+            throw new Error("Password incorrect");
+        }
+    } catch (err) {
+        console.error(err);
+        errorDiv.innerText = "密码错误或验证失败";
+        errorDiv.classList.remove('hidden');
+        document.getElementById('auth-password').value = '';
+        btn.disabled = false;
+        btn.innerHTML = '立即解锁';
+    }
+}
+
 
     // 退出登录 (X5优化版)
     function logout() {
