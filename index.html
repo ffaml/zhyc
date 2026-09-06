@@ -1,5 +1,5 @@
 <!DOCTYPE html> <html lang="zh-CN"> <head> <meta charset="UTF-8"> <!-- X5内核专属优化：禁止动态字体调整，锁定竖屏，强制极速模式 --> <meta name="x5-layout" content="no-dynamic-font"> <meta name="x5-orientation" content="portrait"> <meta name="renderer" content="webkit"> <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"> <title>TagBox - 安全标签管理</title> <script src="https://cdn.tailwindcss.com"></script> <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <style> /* 基础重置与X5兼容 */ * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; } body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; overflow-x: hidden; }
-text
+
     /* 核心修复：强制GPU渲染，防止Fixed定位元素在X5内核下消失或抖动 */
     .gpu-accelerate {
         -webkit-transform: translateZ(0);
