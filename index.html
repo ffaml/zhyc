@@ -1,484 +1,466 @@
+<!DOCTYPE html> <html lang="zh-CN"> <head> <meta charset="UTF-8"> <!-- X5内核专属优化：禁止动态字体调整，锁定竖屏，强制极速模式 --> <meta name="x5-layout" content="no-dynamic-font"> <meta name="x5-orientation" content="portrait"> <meta name="renderer" content="webkit"> <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"> <title>TagBox - 安全标签管理</title> <script src="https://cdn.tailwindcss.com"></script> <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <style> /* 基础重置与X5兼容 */ * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; } body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; overflow-x: hidden; }
+text
+    /* 核心修复：强制GPU渲染，防止Fixed定位元素在X5内核下消失或抖动 */
+    .gpu-accelerate {
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        will-change: transform;
+    }
 
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <!-- X5内核专属优化：禁止动态字体调整，锁定竖屏，强制极速模式 -->
-    <meta name="x5-layout" content="no-dynamic-font">
-    <meta name="x5-orientation" content="portrait">
-    <meta name="renderer" content="webkit">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TagBox - 安全标签管理</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* 基础重置与X5兼容 */
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; overflow-x: hidden; }
+    /* 遮罩层核心样式修复 */
+    #auth-overlay {
+        display: none !important; /* 初始强制隐藏 */
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+        /* 确保层级最高且背景不穿透 */
+        z-index: 9999;
+    }
+    
+    #auth-overlay.show {
+        display: flex !important; /* 显示时强制Flex布局 */
+        opacity: 1;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* 主内容区隐藏类 */
+    .hidden-important { 
+        display: none !important; 
+        visibility: hidden;
+    }
+
+    /* 动画 */
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+    /* 滚动条美化 */
+    ::-webkit-scrollbar { width: 0px; background: transparent; }
+    
+    /* 卡片样式优化 */
+    .tag-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border: 1px solid #f3f4f6;
+        transition: all 0.2s;
+    }
+    .tag-card:active { transform: scale(0.98); }
+
+    /* 模态框底部弹出动画 */
+    .modal-panel {
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transform: translateY(100%);
+    }
+    .modal-panel.open {
+        transform: translateY(0);
+    }
+</style>
+</head> <body class="text-gray-800 min-h-screen relative">
+text
+<!-- 1. 密码验证遮罩层 (X5优化版) -->
+<div id="auth-overlay" class="fixed inset-0 bg-gray-900/90 backdrop-blur-sm gpu-accelerate">
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs mx-4 fade-in border border-gray-100">
+        <div class="text-center mb-6">
+            <div class="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="fa-solid fa-shield-halved text-xl text-indigo-600"></i>
+            </div>
+            <h2 class="text-lg font-bold text-gray-900">安全验证</h2>
+            <p class="text-gray-500 mt-1 text-xs">请输入管理员密码</p>
+        </div>
         
-        /* 核心修复：强制GPU渲染，防止Fixed定位元素在X5内核下消失或抖动 */
-        .gpu-accelerate {
-            -webkit-transform: translateZ(0);
-            transform: translateZ(0);
-            -webkit-backface-visibility: hidden;
-            backface-visibility: hidden;
-            will-change: transform;
-        }
-
-        /* 遮罩层核心样式修复 */
-        #auth-overlay {
-            display: none !important; /* 初始强制隐藏 */
-            opacity: 0;
-            transition: opacity 0.3s ease-in-out;
-            /* 确保层级最高且背景不穿透 */
-            z-index: 9999;
-        }
-        
-        #auth-overlay.show {
-            display: flex !important; /* 显示时强制Flex布局 */
-            opacity: 1;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* 主内容区隐藏类 */
-        .hidden-important { 
-            display: none !important; 
-            visibility: hidden;
-        }
-
-        /* 动画 */
-        .fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-
-        /* 滚动条美化 */
-        ::-webkit-scrollbar { width: 0px; background: transparent; }
-        
-        /* 卡片样式优化 */
-        .tag-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border: 1px solid #f3f4f6;
-            transition: all 0.2s;
-        }
-        .tag-card:active { transform: scale(0.98); }
-
-        /* 模态框底部弹出动画 */
-        .modal-panel {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            transform: translateY(100%);
-        }
-        .modal-panel.open {
-            transform: translateY(0);
-        }
-    </style>
-</head>
-<body class="text-gray-800 min-h-screen relative">
-
-    <!-- 1. 密码验证遮罩层 (X5优化版) -->
-    <div id="auth-overlay" class="fixed inset-0 bg-gray-900/90 backdrop-blur-sm gpu-accelerate">
-        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs mx-4 fade-in border border-gray-100">
-            <div class="text-center mb-6">
-                <div class="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <i class="fa-solid fa-shield-halved text-xl text-indigo-600"></i>
-                </div>
-                <h2 class="text-lg font-bold text-gray-900">安全验证</h2>
-                <p class="text-gray-500 mt-1 text-xs">请输入管理员密码</p>
+        <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
+            <div class="relative">
+                <input type="password" id="auth-password" 
+                       class="block w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm" 
+                       placeholder="输入密码..." autocomplete="off">
             </div>
             
-            <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
-                <div class="relative">
-                    <input type="password" id="auth-password" 
-                           class="block w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm" 
-                           placeholder="输入密码..." autocomplete="off">
-                </div>
-                
-                <div id="auth-error" class="text-red-500 text-xs text-center hidden">
-                    <i class="fa-solid fa-circle-exclamation mr-1"></i> 密码错误
-                </div>
+            <div id="auth-error" class="text-red-500 text-xs text-center hidden">
+                <i class="fa-solid fa-circle-exclamation mr-1"></i> 密码错误
+            </div>
 
-                <button type="submit" id="auth-btn" class="w-full py-3 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-md">
-                    立即解锁
+            <button type="submit" id="auth-btn" class="w-full py-3 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-md">
+                立即解锁
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- 2. 主应用内容 -->
+<div id="app-content" class="hidden-important flex flex-col min-h-screen w-full gpu-accelerate">
+    <!-- 头部 -->
+    <header class="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-100 safe-area-top">
+        <div class="px-4 h-14 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
+                    <i class="fa-solid fa-tags text-xs"></i>
+                </div>
+                <h1 class="text-base font-bold text-gray-900">TagBox</h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="openModal()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-sm active:scale-95 transition">
+                    <i class="fa-solid fa-plus mr-1"></i>新建
                 </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- 2. 主应用内容 -->
-    <div id="app-content" class="hidden-important flex flex-col min-h-screen w-full gpu-accelerate">
-        <!-- 头部 -->
-        <header class="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-100 safe-area-top">
-            <div class="px-4 h-14 flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
-                        <i class="fa-solid fa-tags text-xs"></i>
-                    </div>
-                    <h1 class="text-base font-bold text-gray-900">TagBox</h1>
-                </div>
-                <div class="flex items-center space-x-3">
-                    <button onclick="openModal()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-sm active:scale-95 transition">
-                        <i class="fa-solid fa-plus mr-1"></i>新建
-                    </button>
-                    <button onclick="logout()" class="text-gray-500 hover:text-red-600 p-1">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        <!-- 搜索与筛选 -->
-        <main class="flex-grow px-4 py-4 w-full max-w-3xl mx-auto">
-            <div class="mb-4 space-y-3">
-                <div class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input type="text" id="search-input" class="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg bg-white text-sm focus:ring-1 focus:ring-indigo-500 outline-none" placeholder="搜索标签、备注...">
-                </div>
-                <div class="flex space-x-2 overflow-x-auto pb-1 no-scrollbar" id="category-filters">
-                    <button onclick="filterByCategory('all')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-600 text-white whitespace-nowrap" data-cat="all">全部</button>
-                    <button onclick="filterByCategory('work')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap" data-cat="work">工作</button>
-                    <button onclick="filterByCategory('study')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap" data-cat="study">学习</button>
-                    <button onclick="filterByCategory('life')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap" data-cat="life">生活</button>
-                </div>
-            </div>
-
-            <!-- 标签列表 -->
-            <div id="tags-container" class="grid grid-cols-1 gap-3 pb-20">
-                <!-- 动态生成 -->
-            </div>
-            
-            <div id="empty-state" class="hidden flex-col items-center justify-center py-10 text-center">
-                <i class="fa-regular fa-folder-open text-3xl text-gray-300 mb-2"></i>
-                <p class="text-gray-400 text-xs">暂无数据</p>
-            </div>
-        </main>
-    </div>
-
-    <!-- 模态框 (新建/编辑) -->
-    <div id="tag-modal" class="fixed inset-0 z-50 hidden" aria-modal="true">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeModal()"></div>
-        <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-5 modal-panel" id="modal-panel">
-            <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
-            <h3 class="text-base font-bold mb-4" id="modal-title">新建标签</h3>
-            <div class="space-y-3">
-                <input type="text" id="tag-content" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" placeholder="标签内容">
-                <input type="url" id="tag-url" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" placeholder="链接 URL (可选)">
-                <div class="flex gap-3">
-                    <select id="tag-category" class="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white">
-                        <option value="work">工作</option>
-                        <option value="study">学习</option>
-                        <option value="life">生活</option>
-                    </select>
-                    <input type="color" id="tag-color" class="w-12 h-10 border border-gray-200 rounded-lg p-1" value="#4F46E5">
-                </div>
-                <textarea id="tag-note" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" placeholder="备注信息"></textarea>
-            </div>
-            <div class="mt-6 flex gap-3">
-                <button onclick="saveTag()" class="flex-1 bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium active:bg-indigo-700">保存</button>
-                <button onclick="closeModal()" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg text-sm font-medium active:bg-gray-200">取消</button>
+                <button onclick="logout()" class="text-gray-500 hover:text-red-600 p-1">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
             </div>
         </div>
-    </div>
+    </header>
 
-    <!-- Toast -->
-    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full text-xs shadow-lg transform -translate-y-20 opacity-0 transition-all duration-300 z-50">
-        操作成功
-    </div>
+    <!-- 搜索与筛选 -->
+    <main class="flex-grow px-4 py-4 w-full max-w-3xl mx-auto">
+        <div class="mb-4 space-y-3">
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" id="search-input" class="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg bg-white text-sm focus:ring-1 focus:ring-indigo-500 outline-none" placeholder="搜索标签、备注...">
+            </div>
+            <div class="flex space-x-2 overflow-x-auto pb-1 no-scrollbar" id="category-filters">
+                <button onclick="filterByCategory('all')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-600 text-white whitespace-nowrap" data-cat="all">全部</button>
+                <button onclick="filterByCategory('work')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap" data-cat="work">工作</button>
+                <button onclick="filterByCategory('study')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap" data-cat="study">学习</button>
+                <button onclick="filterByCategory('life')" class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap" data-cat="life">生活</button>
+            </div>
+        </div>
 
-    <script>
-        // --- 核心配置 ---
-        const STORED_HASH = "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"; // 123456
+        <!-- 标签列表 -->
+        <div id="tags-container" class="grid grid-cols-1 gap-3 pb-20">
+            <!-- 动态生成 -->
+        </div>
         
-        let tags = [];
-        let currentFilter = 'all';
-        let editingId = null;
+        <div id="empty-state" class="hidden flex-col items-center justify-center py-10 text-center">
+            <i class="fa-regular fa-folder-open text-3xl text-gray-300 mb-2"></i>
+            <p class="text-gray-400 text-xs">暂无数据</p>
+        </div>
+    </main>
+</div>
 
-        // 初始化
-        document.addEventListener('DOMContentLoaded', () => {
-            // X5内核下延迟执行，确保DOM完全挂载
-            setTimeout(() => {
-                checkAuth();
-            }, 200);
-        });
+<!-- 模态框 (新建/编辑) -->
+<div id="tag-modal" class="fixed inset-0 z-50 hidden" aria-modal="true">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeModal()"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-5 modal-panel" id="modal-panel">
+        <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+        <h3 class="text-base font-bold mb-4" id="modal-title">新建标签</h3>
+        <div class="space-y-3">
+            <input type="text" id="tag-content" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" placeholder="标签内容">
+            <input type="url" id="tag-url" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" placeholder="链接 URL (可选)">
+            <div class="flex gap-3">
+                <select id="tag-category" class="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white">
+                    <option value="work">工作</option>
+                    <option value="study">学习</option>
+                    <option value="life">生活</option>
+                </select>
+                <input type="color" id="tag-color" class="w-12 h-10 border border-gray-200 rounded-lg p-1" value="#4F46E5">
+            </div>
+            <textarea id="tag-note" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm" placeholder="备注信息"></textarea>
+        </div>
+        <div class="mt-6 flex gap-3">
+            <button onclick="saveTag()" class="flex-1 bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium active:bg-indigo-700">保存</button>
+            <button onclick="closeModal()" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg text-sm font-medium active:bg-gray-200">取消</button>
+        </div>
+    </div>
+</div>
 
-        // 认证检查
-        function checkAuth() {
-            const isAuthed = sessionStorage.getItem('tagbox_auth');
-            const overlay = document.getElementById('auth-overlay');
-            const appContent = document.getElementById('app-content');
+<!-- Toast -->
+<div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full text-xs shadow-lg transform -translate-y-20 opacity-0 transition-all duration-300 z-50">
+    操作成功
+</div>
 
-            if (isAuthed === 'true') {
-                // 已登录：隐藏遮罩，显示内容
-                overlay.classList.remove('show');
-                overlay.style.display = 'none';
-                appContent.classList.remove('hidden-important');
-                loadTags();
-                renderTags();
+<script>
+    // --- 核心配置 ---
+    const STORED_HASH = "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"; // 123456
+    
+    let tags = [];
+    let currentFilter = 'all';
+    let editingId = null;
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+        // X5内核下延迟执行，确保DOM完全挂载
+        setTimeout(() => {
+            checkAuth();
+        }, 200);
+    });
+
+    // 认证检查
+    function checkAuth() {
+        const isAuthed = sessionStorage.getItem('tagbox_auth');
+        const overlay = document.getElementById('auth-overlay');
+        const appContent = document.getElementById('app-content');
+
+        if (isAuthed === 'true') {
+            // 已登录：隐藏遮罩，显示内容
+            overlay.classList.remove('show');
+            overlay.style.display = 'none';
+            appContent.classList.remove('hidden-important');
+            loadTags();
+            renderTags();
+        } else {
+            // 未登录：显示遮罩，隐藏内容
+            appContent.classList.add('hidden-important');
+            overlay.style.display = 'flex';
+            overlay.classList.add('show');
+            // 强制重绘
+            void overlay.offsetWidth;
+        }
+    }
+
+    // 哈希计算
+    async function sha256(message) {
+        const msgBuffer = new TextEncoder().encode(message);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // 处理登录
+    async function handleAuth(e) {
+        e.preventDefault();
+        const inputPwd = document.getElementById('auth-password').value;
+        const errorDiv = document.getElementById('auth-error');
+        const btn = document.getElementById('auth-btn');
+        
+        if (!inputPwd) {
+            errorDiv.innerText = "请输入密码";
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        btn.disabled = true;
+
+        try {
+            const inputHash = await sha256(inputPwd);
+            if (inputHash === STORED_HASH) {
+                sessionStorage.setItem('tagbox_auth', 'true');
+                errorDiv.classList.add('hidden');
+                
+                const overlay = document.getElementById('auth-overlay');
+                const appContent = document.getElementById('app-content');
+                
+                // 1. 先淡出遮罩
+                overlay.style.opacity = '0';
+                
+                // 2. 延迟后切换显示状态并强制重绘
+                setTimeout(() => {
+                    overlay.classList.remove('show');
+                    overlay.style.display = 'none';
+                    overlay.style.opacity = ''; // 重置以便下次动画
+                    
+                    appContent.classList.remove('hidden-important');
+                    
+                    // 关键：强制浏览器重排，解决X5内核渲染停滞
+                    void appContent.offsetWidth; 
+                    
+                    loadTags();
+                    renderTags();
+                }, 300);
             } else {
-                // 未登录：显示遮罩，隐藏内容
-                appContent.classList.add('hidden-important');
-                overlay.style.display = 'flex';
-                overlay.classList.add('show');
-                // 强制重绘
-                void overlay.offsetWidth;
-            }
-        }
-
-        // 哈希计算
-        async function sha256(message) {
-            const msgBuffer = new TextEncoder().encode(message);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-
-        // 处理登录
-        async function handleAuth(e) {
-            e.preventDefault();
-            const inputPwd = document.getElementById('auth-password').value;
-            const errorDiv = document.getElementById('auth-error');
-            const btn = document.getElementById('auth-btn');
-            
-            if (!inputPwd) {
-                errorDiv.innerText = "请输入密码";
+                errorDiv.innerText = "密码错误";
                 errorDiv.classList.remove('hidden');
-                return;
-            }
-
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
-            btn.disabled = true;
-
-            try {
-                const inputHash = await sha256(inputPwd);
-                if (inputHash === STORED_HASH) {
-                    sessionStorage.setItem('tagbox_auth', 'true');
-                    errorDiv.classList.add('hidden');
-                    
-                    const overlay = document.getElementById('auth-overlay');
-                    const appContent = document.getElementById('app-content');
-                    
-                    // 1. 先淡出遮罩
-                    overlay.style.opacity = '0';
-                    
-                    // 2. 延迟后切换显示状态并强制重绘
-                    setTimeout(() => {
-                        overlay.classList.remove('show');
-                        overlay.style.display = 'none';
-                        overlay.style.opacity = ''; // 重置以便下次动画
-                        
-                        appContent.classList.remove('hidden-important');
-                        
-                        // 关键：强制浏览器重排，解决X5内核渲染停滞
-                        void appContent.offsetWidth; 
-                        
-                        loadTags();
-                        renderTags();
-                    }, 300);
-                } else {
-                    errorDiv.innerText = "密码错误";
-                    errorDiv.classList.remove('hidden');
-                    document.getElementById('auth-password').value = '';
-                    btn.innerHTML = '立即解锁';
-                    btn.disabled = false;
-                }
-            } catch (err) {
-                console.error(err);
-                errorDiv.innerText = "验证失败，请重试";
-                errorDiv.classList.remove('hidden');
+                document.getElementById('auth-password').value = '';
                 btn.innerHTML = '立即解锁';
                 btn.disabled = false;
             }
+        } catch (err) {
+            console.error(err);
+            errorDiv.innerText = "验证失败，请重试";
+            errorDiv.classList.remove('hidden');
+            btn.innerHTML = '立即解锁';
+            btn.disabled = false;
         }
+    }
 
-        // 退出登录 (X5优化版)
-        function logout() {
-            if(confirm('确定退出登录吗？')) {
-                // 1. 清除状态
-                sessionStorage.removeItem('tagbox_auth');
-                
-                // 2. 强制隐藏主内容
-                const appContent = document.getElementById('app-content');
-                appContent.classList.add('hidden-important');
-                appContent.style.display = 'none';
-                
-                // 3. 重置遮罩层状态
-                const overlay = document.getElementById('auth-overlay');
-                overlay.style.display = 'none';
-                overlay.classList.remove('show');
-                document.getElementById('auth-password').value = '';
-                document.getElementById('auth-error').classList.add('hidden');
-                document.getElementById('auth-btn').innerHTML = '立即解锁';
-                document.getElementById('auth-btn').disabled = false;
-
-                // 4. 延迟显示遮罩，给X5内核重排时间
-                setTimeout(() => {
-                    overlay.style.display = 'flex';
-                    overlay.classList.add('show');
-                    void overlay.offsetWidth; // 强制重绘
-                }, 150);
-            }
-        }
-
-        // --- 业务逻辑 ---
-        function loadTags() {
-            const stored = localStorage.getItem('tagbox_data');
-            tags = stored ? JSON.parse(stored) : [];
-        }
-
-        function renderTags() {
-            const container = document.getElementById('tags-container');
-            const emptyState = document.getElementById('empty-state');
-            const searchVal = document.getElementById('search-input').value.toLowerCase();
+    // 退出登录 (X5优化版)
+    function logout() {
+        if(confirm('确定退出登录吗？')) {
+            // 1. 清除状态
+            sessionStorage.removeItem('tagbox_auth');
             
-            container.innerHTML = '';
+            // 2. 强制隐藏主内容
+            const appContent = document.getElementById('app-content');
+            appContent.classList.add('hidden-important');
+            appContent.style.display = 'none';
             
-            const filtered = tags.filter(t => {
-                const realMatchCat = currentFilter === 'all' || t.category === currentFilter;
-                const contentMatch = t.content.toLowerCase().includes(searchVal);
-                const noteMatch = t.note ? t.note.toLowerCase().includes(searchVal) : false;
-                const urlMatch = t.url ? t.url.toLowerCase().includes(searchVal) : false;
-                return realMatchCat && (contentMatch || noteMatch || urlMatch);
-            });
+            // 3. 重置遮罩层状态
+            const overlay = document.getElementById('auth-overlay');
+            overlay.style.display = 'none';
+            overlay.classList.remove('show');
+            document.getElementById('auth-password').value = '';
+            document.getElementById('auth-error').classList.add('hidden');
+            document.getElementById('auth-btn').innerHTML = '立即解锁';
+            document.getElementById('auth-btn').disabled = false;
 
-            if (filtered.length === 0) {
-                emptyState.classList.remove('hidden');
-                emptyState.classList.add('flex');
-            } else {
-                emptyState.classList.add('hidden');
-                emptyState.classList.remove('flex');
-                filtered.forEach(tag => {
-                    const div = document.createElement('div');
-                    div.className = 'tag-card p-3 relative group';
-                    const hasUrl = tag.url && tag.url.startsWith('http');
-                    
-                    div.innerHTML = `
-                        <div class="flex justify-between items-start mb-2">
-                            <div class="flex items-center space-x-2 overflow-hidden">
-                                <div class="w-1.5 h-8 rounded-full shrink-0" style="background:${tag.color}"></div>
-                                <div class="min-w-0">
-                                    ${hasUrl 
-                                        ? `<a href="${tag.url}" target="_blank" class="font-semibold text-gray-800 text-sm block truncate">${tag.content}</a>`
-                                        : `<div class="font-semibold text-gray-800 text-sm truncate">${tag.content}</div>`
-                                    }
-                                    <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                                        <span class="bg-gray-100 px-1 rounded">${tag.category}</span>
-                                        <span>${new Date(tag.createdAt).toLocaleDateString()}</span>
-                                    </div>
+            // 4. 延迟显示遮罩，给X5内核重排时间
+            setTimeout(() => {
+                overlay.style.display = 'flex';
+                overlay.classList.add('show');
+                void overlay.offsetWidth; // 强制重绘
+            }, 150);
+        }
+    }
+
+    // --- 业务逻辑 ---
+    function loadTags() {
+        const stored = localStorage.getItem('tagbox_data');
+        tags = stored ? JSON.parse(stored) : [];
+    }
+
+    function renderTags() {
+        const container = document.getElementById('tags-container');
+        const emptyState = document.getElementById('empty-state');
+        const searchVal = document.getElementById('search-input').value.toLowerCase();
+        
+        container.innerHTML = '';
+        
+        const filtered = tags.filter(t => {
+            const realMatchCat = currentFilter === 'all' || t.category === currentFilter;
+            const contentMatch = t.content.toLowerCase().includes(searchVal);
+            const noteMatch = t.note ? t.note.toLowerCase().includes(searchVal) : false;
+            const urlMatch = t.url ? t.url.toLowerCase().includes(searchVal) : false;
+            return realMatchCat && (contentMatch || noteMatch || urlMatch);
+        });
+
+        if (filtered.length === 0) {
+            emptyState.classList.remove('hidden');
+            emptyState.classList.add('flex');
+        } else {
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+            filtered.forEach(tag => {
+                const div = document.createElement('div');
+                div.className = 'tag-card p-3 relative group';
+                const hasUrl = tag.url && tag.url.startsWith('http');
+                
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center space-x-2 overflow-hidden">
+                            <div class="w-1.5 h-8 rounded-full shrink-0" style="background:${tag.color}"></div>
+                            <div class="min-w-0">
+                                ${hasUrl 
+                                    ? `<a href="${tag.url}" target="_blank" class="font-semibold text-gray-800 text-sm block truncate">${tag.content}</a>`
+                                    : `<div class="font-semibold text-gray-800 text-sm truncate">${tag.content}</div>`
+                                }
+                                <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                    <span class="bg-gray-100 px-1 rounded">${tag.category}</span>
+                                    <span>${new Date(tag.createdAt).toLocaleDateString()}</span>
                                 </div>
                             </div>
-                            <div class="flex space-x-2 shrink-0 ml-2">
-                                <button onclick="editTag(${tag.id})" class="text-gray-400 hover:text-indigo-600 p-1"><i class="fa-solid fa-pen text-xs"></i></button>
-                                <button onclick="deleteTag(${tag.id})" class="text-gray-400 hover:text-red-600 p-1"><i class="fa-solid fa-trash text-xs"></i></button>
-                            </div>
                         </div>
-                        ${tag.note ? `<p class="text-xs text-gray-500 line-clamp-2 bg-gray-50 p-2 rounded mb-2">${tag.note}</p>` : ''}
-                        <button onclick="copyToClipboard('${hasUrl ? tag.url.replace(/'/g, "\\'") : tag.content.replace(/'/g, "\\'")}')" class="w-full text-xs bg-indigo-50 text-indigo-600 py-1.5 rounded font-medium active:bg-indigo-100">
-                            复制${hasUrl ? '链接' : '内容'}
-                        </button>
-                    `;
-                    container.appendChild(div);
-                });
-            }
+                        <div class="flex space-x-2 shrink-0 ml-2">
+                            <button onclick="editTag(${tag.id})" class="text-gray-400 hover:text-indigo-600 p-1"><i class="fa-solid fa-pen text-xs"></i></button>
+                            <button onclick="deleteTag(${tag.id})" class="text-gray-400 hover:text-red-600 p-1"><i class="fa-solid fa-trash text-xs"></i></button>
+                        </div>
+                    </div>
+                    ${tag.note ? `<p class="text-xs text-gray-500 line-clamp-2 bg-gray-50 p-2 rounded mb-2">${tag.note}</p>` : ''}
+                    <button onclick="copyToClipboard('${hasUrl ? tag.url.replace(/'/g, "\\'") : tag.content.replace(/'/g, "\\'")}')" class="w-full text-xs bg-indigo-50 text-indigo-600 py-1.5 rounded font-medium active:bg-indigo-100">
+                        复制${hasUrl ? '链接' : '内容'}
+                    </button>
+                `;
+                container.appendChild(div);
+            });
         }
+    }
 
-        function openModal(isEdit = false) {
-            const modal = document.getElementById('tag-modal');
-            const panel = document.getElementById('modal-panel');
-            modal.classList.remove('hidden');
-            // 动画效果
-            setTimeout(() => {
-                panel.classList.add('open');
-            }, 10);
-            
-            if(!isEdit) {
-                document.getElementById('tag-content').value = '';
-                document.getElementById('tag-url').value = '';
-                document.getElementById('tag-note').value = '';
-                editingId = null;
-                document.getElementById('modal-title').innerText = '新建标签';
-            }
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('tag-modal');
-            const panel = document.getElementById('modal-panel');
-            panel.classList.remove('open');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
-        }
+    function openModal(isEdit = false) {
+        const modal = document.getElementById('tag-modal');
+        const panel = document.getElementById('modal-panel');
+        modal.classList.remove('hidden');
+        // 动画效果
+        setTimeout(() => {
+            panel.classList.add('open');
+        }, 10);
         
-        function saveTag() {
-            const content = document.getElementById('tag-content').value;
-            if(!content) return showToast('内容不能为空');
-            
-            const newTag = {
-                id: editingId || Date.now(),
-                content: content,
-                url: document.getElementById('tag-url').value,
-                category: document.getElementById('tag-category').value,
-                color: document.getElementById('tag-color').value,
-                note: document.getElementById('tag-note').value,
-                createdAt: editingId ? tags.find(t=>t.id===editingId).createdAt : Date.now()
-            };
+        if(!isEdit) {
+            document.getElementById('tag-content').value = '';
+            document.getElementById('tag-url').value = '';
+            document.getElementById('tag-note').value = '';
+            editingId = null;
+            document.getElementById('modal-title').innerText = '新建标签';
+        }
+    }
 
-            if(editingId) {
-                const idx = tags.findIndex(t => t.id === editingId);
-                tags[idx] = newTag;
-            } else {
-                tags.push(newTag);
-            }
+    function closeModal() {
+        const modal = document.getElementById('tag-modal');
+        const panel = document.getElementById('modal-panel');
+        panel.classList.remove('open');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+    
+    function saveTag() {
+        const content = document.getElementById('tag-content').value;
+        if(!content) return showToast('内容不能为空');
+        
+        const newTag = {
+            id: editingId || Date.now(),
+            content: content,
+            url: document.getElementById('tag-url').value,
+            category: document.getElementById('tag-category').value,
+            color: document.getElementById('tag-color').value,
+            note: document.getElementById('tag-note').value,
+            createdAt: editingId ? tags.find(t=>t.id===editingId).createdAt : Date.now()
+        };
+
+        if(editingId) {
+            const idx = tags.findIndex(t => t.id === editingId);
+            tags[idx] = newTag;
+        } else {
+            tags.push(newTag);
+        }
+        localStorage.setItem('tagbox_data', JSON.stringify(tags));
+        renderTags();
+        closeModal();
+        showToast('保存成功');
+    }
+
+    function editTag(id) {
+        const t = tags.find(x => x.id === id);
+        editingId = id;
+        document.getElementById('tag-content').value = t.content;
+        document.getElementById('tag-url').value = t.url || '';
+        document.getElementById('tag-category').value = t.category;
+        document.getElementById('tag-color').value = t.color;
+        document.getElementById('tag-note').value = t.note || '';
+        document.getElementById('modal-title').innerText = '编辑标签';
+        openModal(true);
+    }
+
+    function deleteTag(id) {
+        if(confirm('确定删除？')) {
+            tags = tags.filter(t => t.id !== id);
             localStorage.setItem('tagbox_data', JSON.stringify(tags));
             renderTags();
-            closeModal();
-            showToast('保存成功');
+            showToast('已删除');
         }
+    }
 
-        function editTag(id) {
-            const t = tags.find(x => x.id === id);
-            editingId = id;
-            document.getElementById('tag-content').value = t.content;
-            document.getElementById('tag-url').value = t.url || '';
-            document.getElementById('tag-category').value = t.category;
-            document.getElementById('tag-color').value = t.color;
-            document.getElementById('tag-note').value = t.note || '';
-            document.getElementById('modal-title').innerText = '编辑标签';
-            openModal(true);
-        }
-
-        function deleteTag(id) {
-            if(confirm('确定删除？')) {
-                tags = tags.filter(t => t.id !== id);
-                localStorage.setItem('tagbox_data', JSON.stringify(tags));
-                renderTags();
-                showToast('已删除');
+    function filterByCategory(cat) {
+        currentFilter = cat;
+        document.querySelectorAll('.cat-btn').forEach(btn => {
+            if(btn.dataset.cat === cat) {
+                btn.className = "cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-600 text-white whitespace-nowrap";
+            } else {
+                btn.className = "cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap";
             }
-        }
+        });
+        renderTags();
+    }
 
-        function filterByCategory(cat) {
-            currentFilter = cat;
-            document.querySelectorAll('.cat-btn').forEach(btn => {
-                if(btn.dataset.cat === cat) {
-                    btn.className = "cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-600 text-white whitespace-nowrap";
-                } else {
-                    btn.className = "cat-btn px-3 py-1.5 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 whitespace-nowrap";
-                }
-            });
-            renderTags();
-        }
+    document.getElementById('search-input').addEventListener('input', renderTags);
 
-        document.getElementById('search-input').addEventListener('input', renderTags);
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板'));
+    }
 
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板'));
-        }
-
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.remove('-translate-y-20', 'opacity-0');
-            setTimeout(() => t.classList.add('-translate-y-20', 'opacity-0'), 2000);
-        }
-    </script>
-</body>
-</html>
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.classList.remove('-translate-y-20', 'opacity-0');
+        setTimeout(() => t.classList.add('-translate-y-20', 'opacity-0'), 2000);
+    }
+</script>
+</body> </html>
